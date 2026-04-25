@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jass - Solo Dev Alarm</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f0f4f9; font-family: 'Inter', sans-serif; }
+        .gradient-box { background: linear-gradient(135deg, #7c3aed, #3b82f6); }
+        .glass-overlay { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .task-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body class="p-6">
+
+    <div class="max-w-md mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <p class="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">Jass</p>
+                <h1 class="text-2xl font-black text-slate-800">Masih Begadang?</h1>
+            </div>
+            <div class="gradient-box w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg">
+                J
+            </div>
+        </header>
+
+        <div class="bg-white rounded-[2rem] p-6 mb-8 flex justify-between items-center shadow-sm">
+            <div class="text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Progress</p>
+                <p id="statsProgress" class="text-lg font-black text-slate-800">0</p>
+            </div>
+            <div class="text-center border-x border-slate-100 px-6">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Selesai</p>
+                <p id="statsSelesai" class="text-lg font-black text-slate-800">0%</p>
+            </div>
+            <div class="text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Digunakan</p>
+                <p id="statsUsed" class="text-lg font-black text-slate-800">0x</p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-sm font-bold text-slate-700 italic">Bikin Jadwal Biar ga lupa !</h2>
+            <button onclick="openModal()" class="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-200">
+                + Create New
+            </button>
+        </div>
+
+        <div id="taskList" class="space-y-4 pb-20"></div>
+    </div>
+
+    <div id="modal" class="fixed inset-0 glass-overlay z-40 hidden flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border border-slate-100">
+            <h3 class="text-xl font-black mb-6 text-slate-800 uppercase tracking-tighter">New Task</h3>
+            <div class="space-y-4 text-[10px] font-black uppercase text-slate-400">
+                <div>
+                    <label class="block mb-2">Nama Tugas</label>
+                    <input type="text" id="taskName" class="w-full bg-slate-50 border-none rounded-xl p-4 text-slate-800 outline-none ring-1 ring-slate-100 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block mb-2">Waktu Alarm</label>
+                    <input type="time" id="taskTime" class="w-full bg-slate-50 border-none rounded-xl p-4 text-slate-800 outline-none ring-1 ring-slate-100 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block mb-2">Gambar Dari Galeri</label>
+                    <input type="file" id="taskFile" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('taskFile').click()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl border-2 border-dashed border-slate-200">
+                        <i class="fas fa-image mr-2"></i> Pilih Foto
+                    </button>
+                    <p id="fileName" class="mt-2 text-[8px] lowercase text-blue-500 text-center"></p>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeModal()" class="flex-1 py-4 font-black text-slate-300 uppercase text-[10px]">Batal</button>
+                <button onclick="saveTask()" class="flex-1 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px]">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="alarmScreen" class="fixed inset-0 bg-blue-600 z-50 hidden flex flex-col items-center justify-center p-8 text-white text-center">
+        <div id="alarmImg" class="w-48 h-48 rounded-full bg-white mb-8 overflow-hidden border-8 border-white/20 shadow-2xl">
+            <img src="" class="w-full h-full object-cover">
+        </div>
+        <h1 class="text-4xl font-black mb-4">Woi woi bangun!</h1>
+        <p id="alarmTaskName" class="text-blue-100 font-bold mb-12 uppercase tracking-[0.2em] text-xs">Kerjain Noh Kerjaan lu</p>
+        <div class="w-full max-w-xs space-y-4">
+            <button onclick="finishAlarm()" class="w-full bg-white text-blue-600 py-5 rounded-[2rem] font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Iya</button>
+            <button onclick="snoozeAlarm()" class="w-full bg-blue-500 text-blue-100 py-5 rounded-[2rem] font-bold text-xs active:scale-95 transition-all">Nanti Tunda 3 Menit</button>
+        </div>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('jass_tasks')) || [];
+        let usedCount = parseInt(localStorage.getItem('jass_used')) || 0;
+        let selectedImageData = "";
+
+        // Handle File Galeri
+        document.getElementById('taskFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileName').innerText = file.name;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    selectedImageData = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
+        function closeModal() { 
+            document.getElementById('modal').classList.add('hidden');
+            selectedImageData = "";
+            document.getElementById('fileName').innerText = "";
+        }
+
+        function saveTask() {
+            const name = document.getElementById('taskName').value;
+            const time = document.getElementById('taskTime').value;
+
+            if(name && time) {
+                tasks.push({ 
+                    id: Date.now(), 
+                    name, 
+                    time, 
+                    img: selectedImageData || "https://via.placeholder.com/150", 
+                    status: 'pending' 
+                });
+                usedCount++;
+                updateStorage();
+                renderTasks();
+                closeModal();
+            }
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('taskList');
+            container.innerHTML = '';
+            tasks.forEach(t => {
+                const card = document.createElement('div');
+                card.className = `task-card p-4 flex items-center justify-between ${t.status === 'done' ? 'opacity-40' : ''}`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <img src="${t.img}" class="w-12 h-12 rounded-xl object-cover border border-slate-100">
+                        <div>
+                            <p class="text-[11px] font-black text-slate-800 uppercase">${t.name}</p>
+                            <p class="text-[10px] font-bold text-blue-500 tracking-tighter">${t.time}</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteTask(${t.id})" class="text-slate-300 hover:text-red-500 transition-all"><i class="fas fa-trash-alt"></i></button>
+                `;
+                container.appendChild(card);
+            });
+            updateStats();
+        }
+
+        function updateStats() {
+            const done = tasks.filter(t => t.status === 'done').length;
+            document.getElementById('statsProgress').innerText = tasks.filter(t => t.status === 'pending').length;
+            document.getElementById('statsSelesai').innerText = tasks.length ? Math.round((done / tasks.length) * 100) + '%' : '0%';
+            document.getElementById('statsUsed').innerText = usedCount + 'x';
+        }
+
+        function updateStorage() {
+            localStorage.setItem('jass_tasks', JSON.stringify(tasks));
+            localStorage.setItem('jass_used', usedCount);
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            updateStorage();
+            renderTasks();
+        }
+
+        // ALARM & AUTO OPEN CHROME
+        let currentAlarmId = null;
+        setInterval(() => {
+            const now = new Date();
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            const activeTask = tasks.find(t => t.time === currentTime && t.status === 'pending');
+            if(activeTask) {
+                triggerAlarm(activeTask);
+            }
+        }, 1000);
+
+        function triggerAlarm(task) {
+            currentAlarmId = task.id;
+            document.getElementById('alarmTaskName').innerText = task.name;
+            document.querySelector('#alarmImg img').src = task.img;
+            document.getElementById('alarmScreen').classList.remove('hidden');
+            
+            // Trik Auto Open (Akan membuka tab baru di Chrome)
+            // Bisa diganti URL-nya ke yang lo mau
+            window.open("https://www.google.com", "_blank"); 
+        }
+
+        function finishAlarm() {
+            tasks = tasks.map(t => t.id === currentAlarmId ? {...t, status: 'done'} : t);
+            updateStorage();
+            renderTasks();
+            document.getElementById('alarmScreen').classList.add('hidden');
+        }
+
+        function snoozeAlarm() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 3);
+            const snoozeTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            tasks = tasks.map(t => t.id === currentAlarmId ? {...t, time: snoozeTime} : t);
+            updateStorage();
+            renderTasks();
+            document.getElementById('alarmScreen').classList.add('hidden');
+        }
+
+        window.onload = renderTasks;
+    </script>
+</body>
+</html>
